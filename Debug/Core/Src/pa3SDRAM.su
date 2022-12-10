@@ -1,0 +1,10 @@
+../Core/Src/pa3SDRAM.c:29:9:Init_SDRAM	8	static
+../Core/Src/pa3SDRAM.c:87:6:SDRAM_Initialization_sequence	24	static
+../Core/Src/pa3SDRAM.c:177:6:simple_SDRAM_test	24	static
+../Core/Src/pa3SDRAM.c:211:6:SDRAM_init_matrices	24	static
+../Core/Src/pa3SDRAM.c:225:9:SDRAM_compare_matrices	16	static
+../Core/Src/pa3SDRAM.c:237:6:SDRAM_write_matrix	24	static
+../Core/Src/pa3SDRAM.c:247:6:SDRAM_mat_row_access_test	24	static
+../Core/Src/pa3SDRAM.c:274:6:SDRAM_DMA_mat_row_access_test	24	static
+../Core/Src/pa3SDRAM.c:287:6:SDRAM_MDMA_mat_row_access_test	24	static
+../Core/Src/pa3SDRAM.c:301:6:SDRAM_mat_col_access_test	24	static
