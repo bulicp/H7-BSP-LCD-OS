@@ -157,6 +157,7 @@ int main(void)
   BSP_LED_Init(LED_GREEN);
   BSP_LED_Init(LED_RED);
   BSP_LED_Off(LED_GREEN);
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
 
   /* Configure the User push-button in EXTI Mode */
   BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
@@ -196,7 +197,7 @@ int main(void)
   UTIL_LCD_SetFont(&Font16);
   sprintf((char* )time_str1, (const char*)"Vsebina v SDRAM: ");
   strcat((char* )time_str1, (char *)sdram_read_Buffer);
-  UTIL_LCD_DisplayStringAt(60, (y_size/2 + 65), (uint8_t *)time_str1, LEFT_MODE);
+  UTIL_LCD_DisplayStringAt(30, (y_size/2 + 65), (uint8_t *)time_str1, LEFT_MODE);
 
 #ifdef __SDRAM_WRITE_COMPARE___
   SDRAM_write_matrix();
@@ -204,11 +205,11 @@ int main(void)
   while (1){
 
 	  // Row-major order access:
-	  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
 	  timer_val_start = __HAL_TIM_GET_COUNTER(&TIM3Handle);
 	  SDRAM_mat_row_access_test();
 	  timer_val_end = __HAL_TIM_GET_COUNTER(&TIM3Handle);
-	  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+	  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
 
 	  if (timer_val_end > timer_val_start)
 		  elapsed_rows = timer_val_end - timer_val_start;
@@ -226,11 +227,11 @@ int main(void)
 	  BSP_LED_Off(LED_GREEN);
 
 	  // Column-major order access:
-	  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
 	  timer_val_start = __HAL_TIM_GET_COUNTER(&TIM3Handle);
 	  SDRAM_mat_col_access_test();
 	  timer_val_end = __HAL_TIM_GET_COUNTER(&TIM3Handle);
-	  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+	  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
 
 	  if (timer_val_end > timer_val_start)
 		  elapsed_cols = timer_val_end - timer_val_start;
@@ -248,11 +249,11 @@ int main(void)
 	  BSP_LED_Off(LED_RED);
 
 	  // DMA memory transfer:
-	  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
 	  timer_val_start = __HAL_TIM_GET_COUNTER(&TIM3Handle);
 	  SDRAM_MDMA_mat_row_access_test();
 	  timer_val_end = __HAL_TIM_GET_COUNTER(&TIM3Handle);
-	  //HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+	  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
 
 	  if (timer_val_end > timer_val_start)
 		  elapsed_dma = timer_val_end - timer_val_start;
