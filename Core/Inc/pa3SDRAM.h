@@ -14,11 +14,12 @@
 
 
 /* Private define ------------------------------------------------------------*/
+#define SDRAM_ROWS						 4096
+#define SDRAM_COLS						 256
 #define SDRAM_BUFFER_SIZE        ((uint32_t)0x0100)   		// 256
-//#define WRITE_READ_ADDR        ((uint32_t)0x00000800)		//  2K offset
 #define MAT_ROWS			     ((uint32_t)64)
-//#define N 150
 #define N 1
+#define MDMA_BLOCK_SIZE			 (MAT_ROWS*SDRAM_COLS)/2    // 32 KB block transfer
 
 /**
   * @brief  SDRAM status structure definition
@@ -30,19 +31,15 @@
   * @{
   */
 
-#define SDRAM_DEVICE_ADDR  ((uint32_t)0xD0000000)
-#define SDRAM_DEVICE_SIZE  ((uint32_t)0x01000000)  /* SDRAM device size in MBytes */
 
-/* #define SDRAM_MEMORY_WIDTH            FMC_SDRAM_MEM_BUS_WIDTH_8  */
-/* #define SDRAM_MEMORY_WIDTH            FMC_SDRAM_MEM_BUS_WIDTH_16 */
-// #define SDRAM_MEMORY_WIDTH               FMC_SDRAM_MEM_BUS_WIDTH_32
-
-//#define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_2
-/* #define SDCLOCK_PERIOD                FMC_SDRAM_CLOCK_PERIOD_3 */
-
-
-#define SDRAM_ROWS						 4096
-#define SDRAM_COLS						 256
+/* LCD has its Frame Buffer located at the start of SDRAM (0xD0000000)
+ * LCD width=480, LCD height = 272
+ * Frame buffer is of size 0x0007F7FC (522236 Bytes)
+ * Hence, use the address 0xD0080000 for SDRAM read/write to avoid writing in the Frame Buffer
+ * Pa3cio, 11.12.2022
+ */
+#define PA3_SDRAM_DEVICE_ADDR_RW  	((uint32_t)0xD0000000) + 0x00080000
+#define PA3_SDRAM_DEVICE_SIZE  		((uint32_t)0x01000000)  /* SDRAM device size in MBytes */
 
 
 /*

@@ -130,7 +130,7 @@ HAL_StatusTypeDef MDMA_SDRAM_Config(void)
 
   /* Configure common MDMA parameters */
   mdma_handle.Init.Request = MDMA_REQUEST_SW;
-  mdma_handle.Init.TransferTriggerMode = MDMA_BLOCK_TRANSFER;
+  mdma_handle.Init.TransferTriggerMode = MDMA_BLOCK_TRANSFER;			// Transfer a block
   mdma_handle.Init.Priority = MDMA_PRIORITY_HIGH;
   mdma_handle.Init.Endianness = MDMA_LITTLE_ENDIANNESS_PRESERVE;
   mdma_handle.Init.SourceInc = MDMA_SRC_INC_WORD;
@@ -140,7 +140,7 @@ HAL_StatusTypeDef MDMA_SDRAM_Config(void)
   mdma_handle.Init.DataAlignment = MDMA_DATAALIGN_PACKENABLE;
   mdma_handle.Init.SourceBurst = MDMA_SOURCE_BURST_SINGLE;
   mdma_handle.Init.DestBurst = MDMA_DEST_BURST_SINGLE;
-  mdma_handle.Init.BufferTransferLength = 128;
+  mdma_handle.Init.BufferTransferLength = 128;							// Atomic transfer: 128 bytes
   mdma_handle.Init.SourceBlockAddressOffset = 0;
   mdma_handle.Init.DestBlockAddressOffset = 0;
 

@@ -45,6 +45,8 @@
 #else
 #define __DELAY 100
 #endif
+
+#define __SDRAM_WRITE_COMPARE___
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -191,6 +193,9 @@ int main(void)
   simple_SDRAM_test();
   SDRAM_init_matrices();
   Display_InitialContent();
+
+  uint32_t color;
+  //BSP_LCD_ReadPixel(0, 479, 271, &color);
 
 
   UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_RED);

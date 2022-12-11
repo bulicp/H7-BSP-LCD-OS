@@ -195,14 +195,14 @@ void simple_SDRAM_test(void){
 	// Piši v SDRAM:
 	for (int i = 0; i < SDRAM_BUFFER_SIZE; i++)
 	{
-		*(uint32_t*) (SDRAM_DEVICE_ADDR + 4*i) = sdram_write_Buffer[i];
+		*(uint32_t*) (PA3_SDRAM_DEVICE_ADDR_RW + 4*i) = sdram_write_Buffer[i];
 	}
 
 
 	// Beri iz SDRAM-a:
 	for (int i = 0; i < SDRAM_BUFFER_SIZE; i++)
 	{
-		sdram_read_Buffer[i] = *(uint32_t*) (SDRAM_DEVICE_ADDR + 4*i);
+		sdram_read_Buffer[i] = *(uint32_t*) (PA3_SDRAM_DEVICE_ADDR_RW + 4*i);
 	}
 }
 
@@ -211,7 +211,7 @@ void simple_SDRAM_test(void){
 void SDRAM_init_matrices(void) {
 	for (int i = 0; i<MAT_ROWS; i++) {
 		for(int j=0; j<SDRAM_COLS; j++ ){
-			matrixA[i][j] = 0;
+			matrixA[i][j] = 0x00FFFF00;
 		}
 	}
 
@@ -238,7 +238,7 @@ void SDRAM_write_matrix(void){
 	volatile uint32_t address;
 	for (int i = 0; i<MAT_ROWS; i++) {
 		for(int j=0; j<SDRAM_COLS; j++) {
-			address = SDRAM_DEVICE_ADDR + ((i*SDRAM_COLS + j)<<2);
+			address = PA3_SDRAM_DEVICE_ADDR_RW + ((i*SDRAM_COLS + j)<<2);
 			*(uint32_t*)address = matrixA[i][j];
 		}
 	}
@@ -252,7 +252,7 @@ void SDRAM_mat_row_access_test(void){
 	{
 		for (int i = 0; i<MAT_ROWS; i++) {
 			for(int j=0; j<SDRAM_COLS; j++) {
-				address = SDRAM_DEVICE_ADDR + ((i*SDRAM_COLS + j)<<2);
+				address = PA3_SDRAM_DEVICE_ADDR_RW + ((i*SDRAM_COLS + j)<<2);
 				*(uint32_t*)address = matrixA[i][j];
 			}
 		}
@@ -263,7 +263,7 @@ void SDRAM_mat_row_access_test(void){
 	{
 		for (int i = 0; i<MAT_ROWS; i++) {
 			for(int j=0; j<SDRAM_COLS; j++) {
-				address = SDRAM_DEVICE_ADDR + ((i*SDRAM_COLS + j)<<2);
+				address = PA3_SDRAM_DEVICE_ADDR_RW + ((i*SDRAM_COLS + j)<<2);
 				matrixB[i][j] = *(uint32_t*)address;
 			}
 		}
@@ -272,12 +272,11 @@ void SDRAM_mat_row_access_test(void){
 
 
 void SDRAM_DMA_mat_row_access_test(void){
-	volatile uint32_t address;
 	volatile HAL_StatusTypeDef status;
 
 	for (int k = 0; k < N; k++)
 	{
-		status = HAL_DMA_Start(&DMA2_SDRAM_Handle, (uint32_t) SDRAM_DEVICE_ADDR, (uint32_t) matrixB, MAT_ROWS * SDRAM_COLS);
+		status = HAL_DMA_Start(&DMA2_SDRAM_Handle, (uint32_t) PA3_SDRAM_DEVICE_ADDR_RW, (uint32_t) matrixB, MAT_ROWS * SDRAM_COLS);
 		if (status == HAL_OK) {
 			status= HAL_DMA_PollForTransfer(&DMA2_SDRAM_Handle, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY);
 		}
@@ -285,14 +284,19 @@ void SDRAM_DMA_mat_row_access_test(void){
 }
 
 void SDRAM_MDMA_mat_row_access_test(void){
-	volatile uint32_t address;
 	volatile HAL_StatusTypeDef status;
 
 	for (int k = 0; k < N; k++)
 	{
-		HAL_SDRAM_Read_DMA(&hsdram[0], (uint32_t *) SDRAM_DEVICE_ADDR, (uint32_t) matrixB, MAT_ROWS * SDRAM_COLS);
-		while (mdma_complete == 0) {}
-		mdma_complete = 0;
+		for (int block = 0; block < 2; block++){
+			// Transfer a block of size 32KB:
+			HAL_SDRAM_Read_DMA(&hsdram[0],
+							(uint32_t *) (PA3_SDRAM_DEVICE_ADDR_RW + block*MDMA_BLOCK_SIZE*4), 	// src address
+							(uint32_t *) matrixB, 												// dst address
+							MDMA_BLOCK_SIZE);													// block size in WORDS to transfer
+			while (mdma_complete == 0) {}
+			mdma_complete = 0;
+		}
 	}
 }
 
@@ -307,7 +311,7 @@ void SDRAM_mat_col_access_test(void){
 	{
 		for (uint32_t i = 0; i<SDRAM_COLS; i++) {
 			for(uint32_t j=0; j<MAT_ROWS; j++) {
-				address = SDRAM_DEVICE_ADDR + ((j*SDRAM_COLS + i)<<2);
+				address = PA3_SDRAM_DEVICE_ADDR_RW + ((j*SDRAM_COLS + i)<<2);
 				*(uint32_t*)address = matrixA[j][i];
 			}
 		}
@@ -318,7 +322,7 @@ void SDRAM_mat_col_access_test(void){
 	{
 		for (int i = 0; i<SDRAM_COLS; i++) {
 			for(int j=0; j<MAT_ROWS; j++) {
-				address = SDRAM_DEVICE_ADDR + ((j*SDRAM_COLS + i)<<2);
+				address = PA3_SDRAM_DEVICE_ADDR_RW + ((j*SDRAM_COLS + i)<<2);
 				matrixB[j][i] = *(uint32_t*)address;
 			}
 		}

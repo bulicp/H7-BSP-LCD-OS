@@ -15,7 +15,7 @@
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 /* DMA stream parameters definitions for M2M transfers between SRAM and SDRAM.
- *   You can modify these parameters to select
+ *   You can modify these parameters to select */
 /*   a different DMA Stream and/or channel.                                   */
 /* But note that only DMA2 Streams are capable of Memory to Memory transfers. */
 #define DMA_SDRAM_INSTANCE               DMA2_Stream3
