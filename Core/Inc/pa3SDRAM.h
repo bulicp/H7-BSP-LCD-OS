@@ -19,7 +19,7 @@
 #define SDRAM_BUFFER_SIZE        ((uint32_t)0x0100)   		// 256
 #define MAT_ROWS			     ((uint32_t)64)
 #define N 1
-#define MDMA_BLOCK_SIZE			 (MAT_ROWS*SDRAM_COLS)/2    // 32 KB block transfer
+#define MDMA_BLOCK_SIZE			 (MAT_ROWS*SDRAM_COLS)    // 32 KB block transfer
 
 /**
   * @brief  SDRAM status structure definition

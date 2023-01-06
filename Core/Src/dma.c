@@ -15,12 +15,13 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-DMA_HandleTypeDef    			DMA2_UART1_Handle;
-extern UART_HandleTypeDef 		UART1Handle;
+DMA_HandleTypeDef    			hdma_UART3TX_Handle;
+extern UART_HandleTypeDef 		UART3Handle;
 MDMA_HandleTypeDef 				mdma_handle;
 //extern SDRAM_HandleTypeDef 		sdramHand;
 extern SDRAM_HandleTypeDef 		hsdram[1];
 extern uint8_t 					mdma_complete;
+
 
 /* Private function prototypes -----------------------------------------------*/
 static void SDRAM_TransferComplete(DMA_HandleTypeDef *DmaHandle);
@@ -122,6 +123,7 @@ static void SDRAM_TransferError(DMA_HandleTypeDef *DmaHandle)
 
 
 
+/* MDMA SDRAM Init */
 HAL_StatusTypeDef MDMA_SDRAM_Config(void)
 {
 
@@ -171,5 +173,52 @@ void HAL_SDRAM_DMA_XferCpltCallback(MDMA_HandleTypeDef *hmdma){
 	}
 }
 
+
+
+
+/* USART3 DMA Init */
+/* Init DMA1_Stream1 for USART3_TX */
+
+HAL_StatusTypeDef DMA1_UART3_Config(void)
+{
+	/* DMA controller clock enable */
+	__HAL_RCC_DMA2_CLK_ENABLE();
+
+    hdma_UART3TX_Handle.Instance = DMA_UART3_INSTANCE;
+    hdma_UART3TX_Handle.Init.Request = DMA_REQUEST_USART3_TX;
+    hdma_UART3TX_Handle.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_UART3TX_Handle.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_UART3TX_Handle.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_UART3TX_Handle.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_UART3TX_Handle.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_UART3TX_Handle.Init.Mode = DMA_NORMAL;
+    hdma_UART3TX_Handle.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_UART3TX_Handle.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    hdma_UART3TX_Handle.Init.FIFOThreshold  = DMA_FIFO_THRESHOLD_FULL;
+    hdma_UART3TX_Handle.Init.MemBurst       = DMA_MBURST_INC4;
+    hdma_UART3TX_Handle.Init.PeriphBurst    = DMA_PBURST_INC4;
+
+    if (HAL_DMA_Init(&hdma_UART3TX_Handle) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+
+    __HAL_LINKDMA(&UART3Handle,hdmatx,hdma_UART3TX_Handle);
+    return HAL_OK;
+
+    /* Configure NVIC for DMA transfer complete/error interrupts ##########*/
+    /* Set Interrupt Group Priority */
+    HAL_NVIC_SetPriority(DMA_UART3_INSTANCE_IRQ, 0, 1);
+
+    /* Enable the DMA STREAM global Interrupt */
+    HAL_NVIC_EnableIRQ(DMA_UART3_INSTANCE_IRQ);
+
+    /* Peripheral Interrupt init */
+    /* Set Interrupt Group Priority */
+    HAL_NVIC_SetPriority(USART3_IRQn, 0, 1);
+
+    /* Enable the USART1 global Interrupt */
+    HAL_NVIC_EnableIRQ(USART3_IRQn);
+}
 
 

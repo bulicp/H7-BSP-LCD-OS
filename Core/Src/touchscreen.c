@@ -283,6 +283,7 @@ void Touchscreen_demo3(void)
   }
 }
 
+/*
 void BSP_TS_Callback(uint32_t Instance)
 {
   {
@@ -290,6 +291,8 @@ void BSP_TS_Callback(uint32_t Instance)
   }
 
 }
+*/
+
 
 static void TS_Update(void)
 {

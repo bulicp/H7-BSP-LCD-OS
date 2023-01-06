@@ -41,6 +41,14 @@ extern "C" {
 #include "stm32h750b_discovery_audio.h"
 #include "stm32h750b_discovery_mmc.h"
 #include "stm32h750b_discovery_sdram.h"
+
+#include "pa3SDRAM.h"
+#include "pa3Timers.h"
+#include "uart.h"
+#include "retarget.h"
+#include "dma.h"
+#include "fdcan.h"
+#include "obd2.h"
 /* USER CODE END Includes */
 
 
@@ -124,6 +132,10 @@ void Toggle_Leds(void);
 void Touchscreen_DrawBackground_Circles(uint8_t state);
 void Touchscreen_demo3(void);
 uint8_t TouchScreen_GetTouchPosition(void);
+
+
+void Display_InitialContent_CAN_Layer1(void);
+void Display_InitialContent_CAN_Layer2(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -229,7 +241,15 @@ uint8_t TouchScreen_GetTouchPosition(void);
 #define FDCAN2_TX_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+#define YSTARTPOS 	60
+#define YSIZE 		50
+#define YOFFSET 	YSIZE+4
 
+#define YROW1		YSTARTPOS
+#define YROW2		YSTARTPOS + YOFFSET
+#define YROW3		YSTARTPOS + 2*(YOFFSET + 0)
+#define YROW4		YSTARTPOS + 3*(YOFFSET + 0)
+#define TEXTOFFSET	26
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

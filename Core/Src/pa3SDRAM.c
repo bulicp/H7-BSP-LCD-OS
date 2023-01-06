@@ -288,7 +288,7 @@ void SDRAM_MDMA_mat_row_access_test(void){
 
 	for (int k = 0; k < N; k++)
 	{
-		for (int block = 0; block < 2; block++){
+		for (int block = 0; block < 1; block++){
 			// Transfer a block of size 32KB:
 			HAL_SDRAM_Read_DMA(&hsdram[0],
 							(uint32_t *) (PA3_SDRAM_DEVICE_ADDR_RW + block*MDMA_BLOCK_SIZE*4), 	// src address

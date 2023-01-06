@@ -48,7 +48,8 @@ extern TIM_HandleTypeDef    			TIM3Handle;
 extern UART_HandleTypeDef 				UART3Handle;
 extern DMA_HandleTypeDef    			DMA2_SDRAM_Handle;
 extern MDMA_HandleTypeDef 				mdma_handle;
-
+extern DMA_HandleTypeDef    			hdma_UART3TX_Handle;
+extern FDCAN_HandleTypeDef 				hfdcan;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -195,7 +196,17 @@ void SysTick_Handler(void)
   */
 void EXTI15_10_IRQHandler(void)
 {
-BSP_PB_IRQHandler(BUTTON_USER);
+	BSP_PB_IRQHandler(BUTTON_USER);
+}
+
+/**
+  * @brief  This function handles External line 2 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void EXTI2_IRQHandler (void)
+{
+	BSP_TS_IRQHandler(0);
 }
 
 /**
@@ -215,6 +226,17 @@ void USART3_IRQHandler(void)
   HAL_UART_IRQHandler(&UART3Handle);
 }
 
+
+/**
+  * @brief  This function handles DMA USART3 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void DMA_UART3_INSTANCE_IRQHANDLER(void)
+{
+	HAL_DMA_IRQHandler(&hdma_UART3TX_Handle);
+}
+
 /**
   * @brief  This function handles DMA SDRAM stream interrupt request.
   * @param  None
@@ -224,6 +246,12 @@ void DMA_SDRAM_INSTANCE_IRQHANDLER(void)
 {
   /* Check the interrupt and clear flag */
   HAL_DMA_IRQHandler(&DMA2_SDRAM_Handle);
+}
+
+
+void FDCAN1_IT0_IRQHandler(void)
+{
+  HAL_FDCAN_IRQHandler(&hfdcan);
 }
 
 /**

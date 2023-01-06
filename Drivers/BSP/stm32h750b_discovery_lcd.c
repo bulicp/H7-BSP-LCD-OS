@@ -294,6 +294,14 @@ int32_t BSP_LCD_InitEx(uint32_t Instance, uint32_t Orientation, uint32_t PixelFo
         ret = BSP_ERROR_PERIPH_FAILURE;
       }
 
+      /* Configure default LTDC Layer 1 */
+      /* Patricio Bulic, 6.1.2023*/
+      config.Address     = LCD_LAYER_1_ADDRESS;
+      if(MX_LTDC_ConfigLayer(&hlcd_ltdc, 1, &config) != HAL_OK)
+      {
+        ret = BSP_ERROR_PERIPH_FAILURE;
+      }
+
       /* Initialize TIM in PWM mode to control brightness */
       TIMx_PWM_Init(&hlcd_tim);
 

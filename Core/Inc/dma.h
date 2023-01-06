@@ -23,6 +23,11 @@
 #define DMA_SRAM_INSTANCE_IRQ            DMA2_Stream3_IRQn
 #define DMA_SDRAM_INSTANCE_IRQHANDLER    DMA2_Stream3_IRQHandler
 
+#define DMA_UART3_INSTANCE               DMA2_Stream7
+#define DMA_UART3_INSTANCE_IRQ           DMA2_Stream7_IRQn
+#define DMA_UART3_INSTANCE_IRQHANDLER    DMA2_Stream7_IRQHandler
+
+
 /* MDMA definitions for SDRAM ;DMA transfer */
 #define SDRAM_MDMAx_CLK_ENABLE             __HAL_RCC_MDMA_CLK_ENABLE
 #define SDRAM_MDMAx_CLK_DISABLE            __HAL_RCC_MDMA_CLK_DISABLE
@@ -37,6 +42,6 @@ extern SDRAM_HandleTypeDef 			sdramHand;
 
 HAL_StatusTypeDef DMA2_SDRAM_Config(DMA_HandleTypeDef* DmaHandle);
 HAL_StatusTypeDef MDMA_SDRAM_Config(void);
-
+HAL_StatusTypeDef DMA1_UART3_Config(void);
 
 #endif /* INC_DMA_H_ */
