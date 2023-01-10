@@ -8,12 +8,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+
 extern uint32_t x_size;
 extern uint32_t y_size;
-
-
-
-
 
 
 void Display_InitialContent_CAN_Layer1(void)
@@ -91,6 +88,9 @@ void Display_InitialContent_CAN_Layer1(void)
   UTIL_LCD_DisplayStringAt(30, YROW4+2, (uint8_t *)"MAF RATE", LEFT_MODE);
   UTIL_LCD_DisplayStringAt(195, YROW4+2, (uint8_t *)"RUN TIME", LEFT_MODE);
   UTIL_LCD_DisplayStringAt(345, YROW4+2, (uint8_t *)"MANIFOLD P", LEFT_MODE);
+
+  //UTIL_LCD_DrawBitmap(0, 0, (uint8_t *)dash);
+
 }
 
 
@@ -169,5 +169,74 @@ void Display_InitialContent_CAN_Layer2(void)
   UTIL_LCD_DisplayStringAt(190, YROW4+2, (uint8_t *)"EGR ERROR", LEFT_MODE);
   UTIL_LCD_DisplayStringAt(375, YROW4+2, (uint8_t *)"EGR", LEFT_MODE);
 
+}
+
+
+void DrawSpeedLine(uint32_t speed, uint32_t Color){
+	float rad;
+	uint32_t x, y;
+
+	if ((speed >= 0) && (speed <= 60)) {
+		rad = (speed) * (2.0*PI/240.0);
+		y = 136 + (uint32_t) (99.0*cos(rad));
+		x = 120 - (uint32_t) (99.0*sin(rad));
+
+	}
+
+	else if ((speed > 60) && (speed <= 120)) {
+		speed = speed - 60;
+		rad = (speed) * (2.0*PI/240.0);
+		y = 136 - (uint32_t) (99.0*sin(rad));
+		x = 120 - (uint32_t) (99.0*cos(rad));
+
+	}
+	else if ((speed > 120) && (speed <= 180)) {
+		speed = speed - 120;
+		rad = (speed) * (2.0*PI/240.0);
+		y = 136 - (uint32_t) (99.0*cos(rad));
+		x = 120 + (uint32_t) (99.0*sin(rad));
+	}
+	else {
+		speed = speed - 180;
+		rad = (speed) * (2.0*PI/240.0);
+		y = 136 + (uint32_t) (99.0*sin(rad));
+		x = 120 + (uint32_t) (99.0*cos(rad));
+	}
+
+	UTIL_LCD_DrawLine(120, 136, x, y, Color);
+}
+
+void DrawRPMLine(uint32_t rpms, uint32_t Color){
+	float rad;
+	uint32_t x, y;
+
+	if ((rpms >= 0) && (rpms <= 1500)) {
+		rad = (rpms) * (2.0*PI/6000.0);
+		y = 136 + (uint32_t) (99.0*cos(rad));
+		x = 363 - (uint32_t) (99.0*sin(rad));
+
+	}
+
+	else if ((rpms > 1500) && (rpms <= 3000)) {
+		rpms = rpms - 1500;
+		rad = (rpms) * (2.0*PI/6000.0);
+		y = 136 - (uint32_t) (99.0*sin(rad));
+		x = 363 - (uint32_t) (99.0*cos(rad));
+
+	}
+	else if ((rpms > 3000) && (rpms <= 4500)) {
+		rpms = rpms - 3000;
+		rad = (rpms) * (2.0*PI/6000.0);
+		y = 136 - (uint32_t) (99.0*cos(rad));
+		x = 363 + (uint32_t) (99.0*sin(rad));
+	}
+	else {
+		rpms = rpms - 4500;
+		rad = (rpms) * (2.0*PI/6000.0);
+		y = 136 + (uint32_t) (99.0*sin(rad));
+		x = 363 + (uint32_t) (99.0*cos(rad));
+	}
+
+	UTIL_LCD_DrawLine(363, 136, x, y, Color);
 }
 

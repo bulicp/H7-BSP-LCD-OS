@@ -151,6 +151,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK)
     {
       // Reception Error
+      __NOP();
     }
 
     //(RxHeader.Identifier == 0x7E8) &&
@@ -173,6 +174,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     	  osstatus = osMessageQueuePut(mid_MsgQueue, &new_can_data, 0U, 0U); // Timeout should be set to zero if called from ISR!!
       if ( osstatus != osOK){
     	  // Message queue error
+    	  __NOP();
 
       }
     }
@@ -180,6 +182,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     if (HAL_FDCAN_ActivateNotification(hfdcan, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK)
     {
       // Notification Error
+    	__NOP();
 
     }
   }

@@ -77,6 +77,12 @@ typedef struct
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+#define __USE_EXTERNAL_FLASH__
+
+
+#define PI 3.14159265
+
+
 #define SDRAM_WRITE_READ_ADDR        ((uint32_t)0xD0177000)
 
 #define SDRAM_WRITE_READ_ADDR_OFFSET ((uint32_t)0x0800)
@@ -136,6 +142,8 @@ uint8_t TouchScreen_GetTouchPosition(void);
 
 void Display_InitialContent_CAN_Layer1(void);
 void Display_InitialContent_CAN_Layer2(void);
+void DrawSpeedLine(uint32_t speed, uint32_t Color);
+void DrawRPMLine(uint32_t rpms, uint32_t Color);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

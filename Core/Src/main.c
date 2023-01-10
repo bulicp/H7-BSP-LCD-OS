@@ -19,10 +19,17 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include <math.h>
+//#include "arm_math.h"
+
+#ifdef __USE_EXTERNAL_FLASH__
+#include "dashboard.h"
+#endif
+//#include "stlogo.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stlogo.h"
+
 
 
 
@@ -43,6 +50,8 @@
 #endif
 
 #define __SDRAM_WRITE_COMPARE___
+
+#define OBD2DELAY 90
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,6 +63,7 @@
 ADC_HandleTypeDef hadc3;
 TS_Init_t hTouchScreen;
 TS_State_t  TouchScreen_State;
+uint8_t touch_index = 0;
 
 
 /* Definitions for defaultTask */
@@ -80,6 +90,8 @@ extern SDRAM_HandleTypeDef 		sdramHand;
 TIM_HandleTypeDef    			TIM3Handle;
 extern LTDC_HandleTypeDef  		hlcd_ltdc;
 uint8_t activeLayer = LTDC_LAYER_1;
+uint8_t screen = 0;
+
 
 osThreadId_t Task1Handle;
 const osThreadAttr_t Task1_attributes = {
@@ -97,6 +109,13 @@ const osThreadAttr_t Task2_attributes = {
 
 osMessageQueueId_t mid_MsgQueue;                // message queue id
 
+uint8_t pid;
+float fvalue = 0.0;
+uint32_t ui32value = 0;
+uint32_t saved_speed = 0;
+uint32_t saved_rpms = 0;
+uint32_t DashColor;
+
 
 
 extern ALIGN_32BYTES (uint32_t sdram_read_Buffer[SDRAM_BUFFER_SIZE]);
@@ -110,7 +129,7 @@ static void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC3_Init(void);
 void StartDefaultTask(void *argument);
-
+static void Display_DemoDescription(void);
 
 
 /* USER CODE BEGIN PFP */
@@ -165,7 +184,27 @@ int main(void)
   /* Configure the system clock to 400 MHz */
   SystemClock_Config();
 
+#ifdef __MINIMAL_EXAMPLE
   /* USER CODE BEGIN SysInit */
+  /* -1- Enable GPIO Clock (to be able to program the configuration registers) */
+  __HAL_RCC_GPIOJ_CLK_ENABLE();
+
+  /* -2- Configure IO in output push-pull mode to drive external LEDs */
+  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull  = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
+
+  /* -3- Toggle IO in an infinite loop */
+  while (1)
+  {
+    HAL_GPIO_TogglePin(GPIOJ, GPIO_PIN_2);
+    /* Insert delay 100 ms */
+    HAL_Delay(100);
+  }
+#endif
 
   /* USER CODE END SysInit */
 
@@ -181,9 +220,23 @@ int main(void)
   BSP_LED_Init(LED_RED);
   BSP_LED_Off(LED_GREEN);
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+/*
+  while (1)
+  {
+    BSP_LED_On(LED_GREEN);
+    BSP_LED_Off(LED_RED);
+    HAL_Delay(200);
+    BSP_LED_Off(LED_GREEN);
+    BSP_LED_On(LED_RED);
+    HAL_Delay(200);
+  }
+*/
 
   /* Configure the User push-button in EXTI Mode */
   BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
+
+  BSP_LCD_Init(0, LCD_ORIENTATION_LANDSCAPE);
+  UTIL_LCD_SetFuncDriver(&LCD_Driver);
 
   /* Configure TIM3 timebase */
   Init_TIM3(&TIM3Handle);
@@ -218,6 +271,10 @@ int main(void)
   BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, ENABLE);
   BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, DISABLE);
 
+  UTIL_LCD_DrawBitmap(0, 0, (uint8_t *)dash);
+  UTIL_LCD_GetPixel(120, 136, &DashColor);
+
+
 
   Display_InitialContent_CAN_Layer1();
   Display_InitialContent_CAN_Layer2();
@@ -244,7 +301,7 @@ int main(void)
   }
   */
 
-
+/*
 
   Init_SDRAM();
   //simple_SDRAM_test();
@@ -257,6 +314,7 @@ int main(void)
   strcat((char* )time_str1, (char *)sdram_read_Buffer);
   //UTIL_LCD_DisplayStringAt(30, (y_size/2 + 65), (uint8_t *)time_str1, LEFT_MODE);
 
+*/
 
 /*
 #ifdef __SDRAM_WRITE_COMPARE___
@@ -400,7 +458,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  __NOP();
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -451,6 +509,8 @@ static void Display_InitialContent(void)
 
 }
 
+
+
 /**
   * @brief  Check for user input
   * @param  None
@@ -470,18 +530,6 @@ void BSP_PB_Callback(Button_TypeDef Button)
  if(Button == BUTTON_USER)
   {
     ButtonState = 1;
-
-    if (activeLayer == LTDC_LAYER_1) {
-    	BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, ENABLE);
-    	BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, DISABLE);
-    	activeLayer = LTDC_LAYER_2;
-    }
-    else {
-    	BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, ENABLE);
-    	BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, DISABLE);
-    	activeLayer = LTDC_LAYER_1;
-    }
-
   }
 }
 
@@ -539,6 +587,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   RCC_OscInitStruct.PLL.PLLQ = 20;  /* fdcan_ker_ck = 40 MHz */
+
 
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
@@ -1125,12 +1174,6 @@ void Task1(void *argument)
   /* USER CODE BEGIN 5 */
   CAN_OBD2_MSGQUEUE_OBJ_t queue_data;
   osStatus_t status = osOK;
-  uint8_t pid;
-
-  float fvalue;
-  uint32_t ui32value;
-
-
 
 
   /* Infinite loop */
@@ -1140,6 +1183,7 @@ void Task1(void *argument)
 	BSP_LCD_GetXSize(0, &x_size);
 	UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_GREEN);
     UTIL_LCD_SetFont(&Font20);
+    memset(obd_response, "\0", sizeof(obd_response));
 
 
 	status = osMessageQueueGet(mid_MsgQueue, &queue_data, NULL, osWaitForever);
@@ -1147,210 +1191,267 @@ void Task1(void *argument)
 
     	pid = queue_data.pid;
 
-    	switch (pid){
-    	case OBD2_PID_PIDS_SUPPORTED_01_20:
-    		//OBD2DecodeSupportedPIDs(queue_data.OBDData, &supportedPIDS);
-    		ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
-    		ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
-    		ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
-    		ui32value |= ((uint32_t)queue_data.OBDData[3]);
+    	if (touch_index < 2){
 
-    		sprintf(obd_response, "Supported PIDS: %x", ui32value);
-    		//UTIL_LCD_DisplayStringAt(0, y_size - 20, obd_response, CENTER_MODE);
-    		break;
-    	case OBD2_PID_PIDS_SUPPORTED_21_40:
-    		ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
-    		ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
-    		ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
-    		ui32value |= ((uint32_t)queue_data.OBDData[3]);
-    		sprintf(obd_response, "Supported PIDS: %x", ui32value);
+			switch (pid){
+			case OBD2_PID_PIDS_SUPPORTED_01_20:
+				//OBD2DecodeSupportedPIDs(queue_data.OBDData, &supportedPIDS);
+				ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
+				ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
+				ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
+				ui32value |= ((uint32_t)queue_data.OBDData[3]);
 
-    		break;
-    	case OBD2_PID_PIDS_SUPPORTED_41_60:
-    		ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
-    		ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
-    		ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
-    		ui32value |= ((uint32_t)queue_data.OBDData[3]);
-    		sprintf(obd_response, "Supported PIDS: %x", ui32value);
+				sprintf(obd_response, "Supported PIDS: %x", ui32value);
+				//UTIL_LCD_DisplayStringAt(0, y_size - 20, obd_response, CENTER_MODE);
+				break;
+			case OBD2_PID_PIDS_SUPPORTED_21_40:
+				ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
+				ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
+				ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
+				ui32value |= ((uint32_t)queue_data.OBDData[3]);
+				sprintf(obd_response, "Supported PIDS: %x", ui32value);
 
-    		break;
-    	case OBD2_PID_PIDS_SUPPORTED_61_80:
-    		ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
-    		ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
-    		ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
-    		ui32value |= ((uint32_t)queue_data.OBDData[3]);
-    		sprintf(obd_response, "Supported PIDS: %x", ui32value);
+				break;
+			case OBD2_PID_PIDS_SUPPORTED_41_60:
+				ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
+				ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
+				ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
+				ui32value |= ((uint32_t)queue_data.OBDData[3]);
+				sprintf(obd_response, "Supported PIDS: %x", ui32value);
 
-    		break;
+				break;
+			case OBD2_PID_PIDS_SUPPORTED_61_80:
+				ui32value = ((uint32_t)queue_data.OBDData[0]) << 24;
+				ui32value |= ((uint32_t)queue_data.OBDData[1]) << 16;
+				ui32value |= ((uint32_t)queue_data.OBDData[2]) << 8;
+				ui32value |= ((uint32_t)queue_data.OBDData[3]);
+				sprintf(obd_response, "Supported PIDS: %x", ui32value);
 
-    	// ************************************************************************
-    	// ROW 1:
-    	case OBD2_PID_VEHICLE_SPEED:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeVehicleSpeed(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d km/h", ui32value);
-    		UTIL_LCD_DisplayStringAt(30, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_ENGINE_SPEED:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeEngineSpeed(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%5d", ui32value);
-    		UTIL_LCD_DisplayStringAt(200, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_ENGINE_LOAD:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		fvalue = OBD2DecodeEngineLoad(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%2d %%", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(380, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
+				break;
 
-    	case OBD2_PID_FUEL_RAIL_GAUGE_PRESSURE:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		ui32value = OBD2DecodeFuelRailPressure(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%6d kPa", ui32value);
-    		UTIL_LCD_DisplayStringAt(10, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_DISTANCE_SINCE_CODES_CLEARED:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		ui32value = OBD2DecodeDistanceSinceCodeCleared(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%6d km", ui32value);
-    		UTIL_LCD_DisplayStringAt(180, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_ABS_BARO_PRESSURE:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		ui32value = OBD2DecodeAbsoluteBarometricPressure(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%4d hPa", ui32value);
-    		UTIL_LCD_DisplayStringAt(350, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
+			// ************************************************************************
+			// ROW 1:
+			case OBD2_PID_VEHICLE_SPEED:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeVehicleSpeed(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d km/h", ui32value);
+				UTIL_LCD_DisplayStringAt(30, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_ENGINE_SPEED:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeEngineSpeed(queue_data.OBDData);
+				sprintf((char*)obd_response, "%5d", ui32value);
+				UTIL_LCD_DisplayStringAt(200, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_ENGINE_LOAD:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				fvalue = OBD2DecodeEngineLoad(queue_data.OBDData);
+				sprintf((char*)obd_response, "%2d %%", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(380, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
 
-
-
-    	// ************************************************************************
-    	// Row 2:
-    	case OBD2_PID_ENGINE_COOLANT_TEMP:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeEngineCoolantTemp(queue_data.OBDData);
-    		sprintf(obd_response, "%3d deg", ui32value);
-    		UTIL_LCD_DisplayStringAt(35, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_INTAKE_AIR_TEMP:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeIntakeAirTemp(queue_data.OBDData);
-    		sprintf(obd_response, "%d deg", ui32value);
-    		UTIL_LCD_DisplayStringAt(195, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_FUEL_SYS_STATUS:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		OBD2DecodeFuelSystemStatus(queue_data.OBDData, obd_response, sizeof(obd_response));
-    		UTIL_LCD_SetFont(&Font12);
-    		UTIL_LCD_DisplayStringAt(360, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		UTIL_LCD_SetFont(&Font20);
-    		break;
-
-    	case OBD2_PID_ABS_CATALYST_TEMP:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		fvalue = OBD2DecodeCatalystTemperature(queue_data.OBDData);
-    		sprintf(obd_response, "%3d deg", (uint32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(35, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_CONTROL_MODULE_VOLTAGE:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		fvalue = OBD2DecodeControlModuleVoltage(queue_data.OBDData);
-    		sprintf(obd_response, "%d V", (uint32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(215, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_AMBIENT_AIR_TEMP:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		ui32value = OBD2DecodeAmbientAirTemperature(queue_data.OBDData);
-    		sprintf(obd_response, "%2d deg", ui32value);
-    		UTIL_LCD_DisplayStringAt(345, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-
-    	// ************************************************************************
-        // Row 3:
-    	case OBD2_PID_OXY_SENSOR_1:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeOxySensor1(queue_data.OBDData);
-    		sprintf(obd_response, "%4d mV", ui32value);
-    		UTIL_LCD_DisplayStringAt(20, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_OXY_SENSOR_2:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeOxySensor2(queue_data.OBDData);
-    		sprintf(obd_response, "%4d mV", ui32value);
-    		UTIL_LCD_DisplayStringAt(195, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_THROTTLE_POSITION:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		fvalue = OBD2DecodeThrottlePosition(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d %%", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(370, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-
-    	case OBD2_PID_ACCELERATOR_PEDAL_POSITION_D:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		fvalue = OBD2DecodeAcceleratedPedalPosition(queue_data.OBDData);
-    		sprintf(obd_response, "%3d %%", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(30, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_ACCELERATOR_PEDAL_POSITION_E:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		fvalue = OBD2DecodeAcceleratedPedalPosition(queue_data.OBDData);
-    		sprintf(obd_response, "%3d %%", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(205, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_ENGINE_FUEL_INJECTION_TIMING:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		ui32value = OBD2DecodeFuelInjectionTiming(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%5d deg", ui32value);
-    		UTIL_LCD_DisplayStringAt(340, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
+			case OBD2_PID_FUEL_RAIL_GAUGE_PRESSURE:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				ui32value = OBD2DecodeFuelRailPressure(queue_data.OBDData);
+				sprintf((char*)obd_response, "%6d kPa", ui32value);
+				UTIL_LCD_DisplayStringAt(10, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_DISTANCE_SINCE_CODES_CLEARED:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				ui32value = OBD2DecodeDistanceSinceCodeCleared(queue_data.OBDData);
+				sprintf((char*)obd_response, "%6d km", ui32value);
+				UTIL_LCD_DisplayStringAt(180, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_ABS_BARO_PRESSURE:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				ui32value = OBD2DecodeAbsoluteBarometricPressure(queue_data.OBDData);
+				sprintf((char*)obd_response, "%4d hPa", ui32value);
+				UTIL_LCD_DisplayStringAt(350, YROW1 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
 
 
-    	// ************************************************************************
-    	// Row 4:
-    	case OBD2_PID_MAF_FLOW_RATE:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		fvalue = OBD2DecodeMAFRate(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d g/s", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(25, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_RUN_SINCE_ENGINE_START:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeRunTime(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%5d s", ui32value);
-    		UTIL_LCD_DisplayStringAt(190, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_INTAKE_MANIFOLD_PRESSURE:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
-    		ui32value = OBD2DecodeManifoldPressure(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d kPa", ui32value);
-    		UTIL_LCD_DisplayStringAt(350, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
+
+			// ************************************************************************
+			// Row 2:
+			case OBD2_PID_ENGINE_COOLANT_TEMP:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeEngineCoolantTemp(queue_data.OBDData);
+				sprintf(obd_response, "%3d deg", ui32value);
+				UTIL_LCD_DisplayStringAt(35, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_INTAKE_AIR_TEMP:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeIntakeAirTemp(queue_data.OBDData);
+				sprintf(obd_response, "%d deg", ui32value);
+				UTIL_LCD_DisplayStringAt(195, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_FUEL_SYS_STATUS:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				OBD2DecodeFuelSystemStatus(queue_data.OBDData, obd_response, sizeof(obd_response));
+				UTIL_LCD_SetFont(&Font12);
+				UTIL_LCD_DisplayStringAt(360, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
+				UTIL_LCD_SetFont(&Font20);
+				break;
+
+			case OBD2_PID_ABS_CATALYST_TEMP:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				fvalue = OBD2DecodeCatalystTemperature(queue_data.OBDData);
+				sprintf(obd_response, "%3d deg", (uint32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(35, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_CONTROL_MODULE_VOLTAGE:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				fvalue = OBD2DecodeControlModuleVoltage(queue_data.OBDData);
+				sprintf(obd_response, "%d V", (uint32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(215, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_AMBIENT_AIR_TEMP:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				ui32value = OBD2DecodeAmbientAirTemperature(queue_data.OBDData);
+				sprintf(obd_response, "%2d deg", ui32value);
+				UTIL_LCD_DisplayStringAt(345, YROW2 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+
+			// ************************************************************************
+			// Row 3:
+			case OBD2_PID_OXY_SENSOR_1:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeOxySensor1(queue_data.OBDData);
+				sprintf(obd_response, "%4d mV", ui32value);
+				UTIL_LCD_DisplayStringAt(20, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_OXY_SENSOR_2:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeOxySensor2(queue_data.OBDData);
+				sprintf(obd_response, "%4d mV", ui32value);
+				UTIL_LCD_DisplayStringAt(195, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_THROTTLE_POSITION:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				fvalue = OBD2DecodeThrottlePosition(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d %%", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(370, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+
+			case OBD2_PID_ACCELERATOR_PEDAL_POSITION_D:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				fvalue = OBD2DecodeAcceleratedPedalPosition(queue_data.OBDData);
+				sprintf(obd_response, "%3d %%", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(30, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_ACCELERATOR_PEDAL_POSITION_E:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				fvalue = OBD2DecodeAcceleratedPedalPosition(queue_data.OBDData);
+				sprintf(obd_response, "%3d %%", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(205, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_ENGINE_FUEL_INJECTION_TIMING:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				ui32value = OBD2DecodeFuelInjectionTiming(queue_data.OBDData);
+				sprintf((char*)obd_response, "%5d deg", ui32value);
+				UTIL_LCD_DisplayStringAt(340, YROW3 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
 
 
-    	case OBD2_PID_COMMANDED_THROTTLE_ACTUATOR:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		fvalue = OBD2DecodeCommandedThrottlePosition(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d %%", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(25, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_COMMANDED_EGR_ERROR:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		ui32value = OBD2DecodeCommandedEGRError(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d %%", ui32value);
-    		UTIL_LCD_DisplayStringAt(200, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
-    	case OBD2_PID_COMMANDED_EGR:
-    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
-    		fvalue = OBD2DecodeCommandedEGR(queue_data.OBDData);
-    		sprintf((char*)obd_response, "%3d %%", (int32_t)fvalue);
-    		UTIL_LCD_DisplayStringAt(350, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
-    		break;
+			// ************************************************************************
+			// Row 4:
+			case OBD2_PID_MAF_FLOW_RATE:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				fvalue = OBD2DecodeMAFRate(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d g/s", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(25, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_RUN_SINCE_ENGINE_START:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeRunTime(queue_data.OBDData);
+				sprintf((char*)obd_response, "%5d s", ui32value);
+				UTIL_LCD_DisplayStringAt(190, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_INTAKE_MANIFOLD_PRESSURE:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeManifoldPressure(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d kPa", ui32value);
+				UTIL_LCD_DisplayStringAt(350, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
 
 
-    	default:
-    		break;
+			case OBD2_PID_COMMANDED_THROTTLE_ACTUATOR:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				fvalue = OBD2DecodeCommandedThrottlePosition(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d %%", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(25, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_COMMANDED_EGR_ERROR:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				ui32value = OBD2DecodeCommandedEGRError(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d %%", ui32value);
+				UTIL_LCD_DisplayStringAt(200, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+			case OBD2_PID_COMMANDED_EGR:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+				fvalue = OBD2DecodeCommandedEGR(queue_data.OBDData);
+				sprintf((char*)obd_response, "%3d %%", (int32_t)fvalue);
+				UTIL_LCD_DisplayStringAt(350, YROW4 + TEXTOFFSET, obd_response, LEFT_MODE);
+				break;
+
+
+			default:
+				break;
+			}
+    	}	// if touch_index < 2
+    	else {		// touch_index = 2
+    		switch (pid){
+    		case OBD2_PID_VEHICLE_SPEED:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				// Delete previous speed line:
+				DrawSpeedLine(saved_speed, DashColor);
+				//UTIL_LCD_DrawBitmap(0, 0, (uint8_t *)dash);
+				// Draw new line:
+				ui32value = OBD2DecodeVehicleSpeed(queue_data.OBDData);
+				saved_speed = ui32value;
+				DrawSpeedLine(ui32value,  UTIL_LCD_COLOR_CYAN);
+				break;
+			case OBD2_PID_ENGINE_SPEED:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				// Delete previous rpms line:
+				DrawRPMLine(saved_rpms, DashColor);
+				//UTIL_LCD_DrawBitmap(0, 0, (uint8_t *)dash);
+				// Draw new line:
+				ui32value = OBD2DecodeEngineSpeed(queue_data.OBDData);
+				saved_rpms = ui32value;
+				DrawRPMLine(ui32value,  UTIL_LCD_COLOR_CYAN );
+				break;
+			case OBD2_PID_ENGINE_COOLANT_TEMP:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeEngineCoolantTemp(queue_data.OBDData);
+				sprintf(obd_response, "%3d", ui32value);
+				UTIL_LCD_SetFont(&Font24);
+				UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLACK);
+				if (ui32value >= 90)
+					UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_RED);
+				else
+					UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_YELLOW);
+				UTIL_LCD_DisplayStringAt(0, 245, obd_response, CENTER_MODE);
+				UTIL_LCD_SetFont(&Font20);
+				UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLUE);
+				UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_GREEN);
+				break;
+
+			case OBD2_PID_AMBIENT_AIR_TEMP:
+				BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+				ui32value = OBD2DecodeAmbientAirTemperature(queue_data.OBDData);
+				sprintf(obd_response, "%2d", ui32value);
+				UTIL_LCD_SetFont(&Font24);
+				UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLACK);
+				UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_LIGHTBLUE);
+				UTIL_LCD_DisplayStringAt(0, 5, obd_response, CENTER_MODE);
+				UTIL_LCD_SetFont(&Font20);
+				UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_BLUE);
+				UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_GREEN);
+			default:
+				break;
+
+    		}
     	}
     }
   }
@@ -1368,110 +1469,168 @@ void Task2(void *argument)
   for(;;)
   {
 
-	  /*
-	  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_01_20);
-	  osDelay(100)
-	  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_21_40);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_41_60);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_61_80);
-	  osDelay(100);
-	  */
+	  if (touch_index < 2){
+		  /*
+		  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_01_20);
+		  osDelay(100)
+		  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_21_40);
+		  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_41_60);
+		  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_PIDS_SUPPORTED_61_80);
+		  osDelay(100);
+		  */
 
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_LOAD);
-	  osDelay(100);
-
-
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_COOLANT_TEMP);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_INTAKE_AIR_TEMP);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_FUEL_SYS_STATUS);
-	  osDelay(100);
-
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
-	  osDelay(100);
-
-	  OBD2_SendQuery(0x01, OBD2_PID_OXY_SENSOR_1);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_OXY_SENSOR_2);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_THROTTLE_POSITION);
-	  osDelay(100);
-
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_LOAD);
+		  osDelay(OBD2DELAY);
 
 
-	  OBD2_SendQuery(0x01, OBD2_PID_MAF_FLOW_RATE);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_INTAKE_MANIFOLD_PRESSURE);
-	  osDelay(100);
-
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_COOLANT_TEMP);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_INTAKE_AIR_TEMP);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_FUEL_SYS_STATUS);
+		  osDelay(OBD2DELAY);
 
 
-	  OBD2_SendQuery(0x01, OBD2_PID_FUEL_RAIL_GAUGE_PRESSURE);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_DISTANCE_SINCE_CODES_CLEARED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ABS_BARO_PRESSURE);
-	  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
+		  osDelay(OBD2DELAY);
 
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
-	  osDelay(100);
 
-	  OBD2_SendQuery(0x01, OBD2_PID_ABS_CATALYST_TEMP);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_CONTROL_MODULE_VOLTAGE);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_AMBIENT_AIR_TEMP);
-	  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_OXY_SENSOR_1);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_OXY_SENSOR_2);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_THROTTLE_POSITION);
+		  osDelay(OBD2DELAY);
 
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
 
-	  OBD2_SendQuery(0x01, OBD2_PID_ACCELERATOR_PEDAL_POSITION_D);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ACCELERATOR_PEDAL_POSITION_E);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_FUEL_INJECTION_TIMING);
-	  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
 
-	  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
-	  osDelay(100);
 
-	  OBD2_SendQuery(0x01, OBD2_PID_COMMANDED_THROTTLE_ACTUATOR);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_COMMANDED_EGR);
-	  osDelay(100);
-	  OBD2_SendQuery(0x01, OBD2_PID_COMMANDED_EGR_ERROR);
-	  osDelay(100);
+		  OBD2_SendQuery(0x01, OBD2_PID_MAF_FLOW_RATE);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_INTAKE_MANIFOLD_PRESSURE);
+		  osDelay(OBD2DELAY);
 
+
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+
+
+		  OBD2_SendQuery(0x01, OBD2_PID_FUEL_RAIL_GAUGE_PRESSURE);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_DISTANCE_SINCE_CODES_CLEARED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ABS_BARO_PRESSURE);
+		  osDelay(OBD2DELAY);
+
+
+
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
+		  osDelay(OBD2DELAY);
+
+		  OBD2_SendQuery(0x01, OBD2_PID_ABS_CATALYST_TEMP);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_CONTROL_MODULE_VOLTAGE);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_AMBIENT_AIR_TEMP);
+		  osDelay(OBD2DELAY);
+
+
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+
+		  OBD2_SendQuery(0x01, OBD2_PID_ACCELERATOR_PEDAL_POSITION_D);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ACCELERATOR_PEDAL_POSITION_E);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_FUEL_INJECTION_TIMING);
+		  osDelay(OBD2DELAY);
+
+
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_RUN_SINCE_ENGINE_START);
+		  osDelay(OBD2DELAY);
+
+		  OBD2_SendQuery(0x01, OBD2_PID_COMMANDED_THROTTLE_ACTUATOR);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_COMMANDED_EGR);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_COMMANDED_EGR_ERROR);
+		  osDelay(OBD2DELAY);
+
+	  }
+	  else {
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_AMBIENT_AIR_TEMP);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		   OBD2_SendQuery(0x01, OBD2_PID_ENGINE_COOLANT_TEMP);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_VEHICLE_SPEED);
+		  osDelay(OBD2DELAY);
+		  OBD2_SendQuery(0x01, OBD2_PID_ENGINE_SPEED);
+		  osDelay(OBD2DELAY);
+	  }
   }
 
 }
@@ -1486,21 +1645,6 @@ void BSP_TS_Callback(uint32_t Instance){
 		/* One or dual touch have been detected          */
 		/* Only take into account the first touch so far */
 
-		/* Get X and Y position of the first touch post calibrated */
-		//x_new_pos = TS_State.TouchX;
-		//y_new_pos = TS_State.TouchY;
-
-
-		if (activeLayer == LTDC_LAYER_1) {
-			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, ENABLE);
-			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, DISABLE);
-			activeLayer = LTDC_LAYER_2;
-		}
-		else {
-			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, ENABLE);
-			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, DISABLE);
-			activeLayer = LTDC_LAYER_1;
-		}
 	}
 }
 
@@ -1533,19 +1677,35 @@ void StartDefaultTask(void *argument)
     	/* One or dual touch have been detected          */
         /* Only take into account the first touch so far */
 
-        /* Get X and Y position of the first touch post calibrated */
-        //x1 = TS_State.TouchX;
-        //y1 = TS_State.TouchY;
-    	if (activeLayer == LTDC_LAYER_1) {
-			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, ENABLE);
-			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, DISABLE);
-			activeLayer = LTDC_LAYER_2;
-		}
-		else {
+    	touch_index ++ ;
+    	if (touch_index == 3) touch_index = 0;
+
+    	if(touch_index == 0) {
+    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+    		Display_InitialContent_CAN_Layer1();
+    		activeLayer = LTDC_LAYER_1;
 			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, ENABLE);
 			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, DISABLE);
-			activeLayer = LTDC_LAYER_1;
+    	}
+		else if(touch_index == 1) {
+			BSP_LCD_SetActiveLayer(0, LTDC_LAYER_2);
+			Display_InitialContent_CAN_Layer2();
+			activeLayer = LTDC_LAYER_2;
+			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, ENABLE);
+			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, DISABLE);
 		}
+    	else {
+#ifdef __USE_EXTERNAL_FLASH__
+    		BSP_LCD_SetActiveLayer(0, LTDC_LAYER_1);
+    		//UTIL_LCD_GetPixel(120, 136, &DashColor);
+    	    activeLayer = LTDC_LAYER_1;
+    		UTIL_LCD_DrawBitmap(0, 0, (uint8_t *)dash);
+    		BSP_LCD_SetLayerVisible(0, LTDC_LAYER_1, ENABLE);
+			BSP_LCD_SetLayerVisible(0, LTDC_LAYER_2, DISABLE);
+    		osDelay(10);
+#endif
+			__NOP();
+    	}
     }
   }
   /* USER CODE END 5 */
